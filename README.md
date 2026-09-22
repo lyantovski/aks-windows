@@ -10,6 +10,11 @@ The Kubernetes manifests are stored in the `k8s-scripts` folder:
 - `k8s-scripts/k8s-windows-golden.yaml` creates the golden Windows disk.
 - `k8s-scripts/k8s-windows.yaml` deploys the Windows StatefulSet.
 
+To distribute the installed Windows disk through Azure Container Registry and
+restore it in another Kubernetes namespace or cluster, use the self-contained
+workflow in `portable-acr-windows/README.md`. It mirrors the runtime container
+and stores the stopped `/storage` contents as a separate generic OCI artifact.
+
 ## Prerequisites
 
 - An AKS cluster with Linux nodes that expose `/dev/kvm` and `/dev/net/tun`.

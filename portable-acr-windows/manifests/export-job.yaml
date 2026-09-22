@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: portable-windows-export-staging
+  namespace: __NAMESPACE__
+  labels:
+    app.kubernetes.io/name: portable-windows-export
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: __STORAGE_CLASS__
+  resources:
+    requests:
+      storage: __STAGING_SIZE__
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: portable-windows-export
+  namespace: __NAMESPACE__
+  labels:
+    app.kubernetes.io/name: portable-windows-export
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 7200
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: portable-windows-export
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+      - name: exporter
+        image: __TRANSFER_IMAGE__
+        imagePullPolicy: Always
+        args:
+        - /usr/local/bin/export.sh
+        env:
+        - name: ACR_REGISTRY
+          value: __ACR_REGISTRY__
+        - name: ACR_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: portable-windows-oras
+              key: username
+        - name: ACR_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: portable-windows-oras
+              key: password
+        - name: ARTIFACT_REPOSITORY
+          value: __ARTIFACT_REPOSITORY__
+        - name: ARTIFACT_TAG
+          value: __ARTIFACT_TAG__
+        - name: SOURCE_NAMESPACE
+          value: __NAMESPACE__
+        - name: SOURCE_PVC
+          value: __SOURCE_PVC__
+        - name: SOURCE_RUNTIME_IMAGE
+          value: __RUNTIME_IMAGE__
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: "4"
+            memory: 4Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsUser: 0
+        volumeMounts:
+        - name: source
+          mountPath: /source
+          readOnly: true
+        - name: staging
+          mountPath: /staging
+      volumes:
+      - name: source
+        persistentVolumeClaim:
+          claimName: __SOURCE_PVC__
+          readOnly: true
+      - name: staging
+        persistentVolumeClaim:
+          claimName: portable-windows-export-staging

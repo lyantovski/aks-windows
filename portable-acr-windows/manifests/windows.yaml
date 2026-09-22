@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: windows
+  namespace: __NAMESPACE__
+  labels:
+    app: windows
+spec:
+  serviceName: windows-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: windows
+  template:
+    metadata:
+      labels:
+        app: windows
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+      - name: windows
+        image: __RUNTIME_IMAGE__
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DISK_SIZE
+          value: "__DISK_SIZE__"
+        ports:
+        - containerPort: 8006
+          name: http
+          protocol: TCP
+        - containerPort: 3389
+          name: rdp
+          protocol: TCP
+        - containerPort: 3389
+          name: udp
+          protocol: UDP
+        - containerPort: 5900
+          name: vnc
+          protocol: TCP
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN
+          privileged: true
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+          limits:
+            cpu: "4"
+            memory: 8Gi
+        readinessProbe:
+          tcpSocket:
+            port: rdp
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 240
+        volumeMounts:
+        - mountPath: /storage
+          name: storage
+        - mountPath: /dev/kvm
+          name: dev-kvm
+        - mountPath: /dev/net/tun
+          name: dev-tun
+      terminationGracePeriodSeconds: 120
+      volumes:
+      - name: dev-kvm
+        hostPath:
+          path: /dev/kvm
+          type: CharDevice
+      - name: dev-tun
+        hostPath:
+          path: /dev/net/tun
+          type: CharDevice
+  volumeClaimTemplates:
+  - metadata:
+      name: storage
+      labels:
+        app: windows
+        role: replica-storage
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: __STORAGE_CLASS__
+      resources:
+        requests:
+          storage: __STORAGE_SIZE__
+      dataSource:
+        kind: PersistentVolumeClaim
+        name: __TARGET_PVC__
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: windows-headless
+  namespace: __NAMESPACE__
+spec:
+  clusterIP: None
+  ports:
+  - name: http
+    port: 8006
+    protocol: TCP
+    targetPort: 8006
+  selector:
+    app: windows
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: windows
+  namespace: __NAMESPACE__
+spec:
+  internalTrafficPolicy: Cluster
+  ports:
+  - name: http
+    port: 8006
+    protocol: TCP
+    targetPort: 8006
+  - name: rdp
+    port: 3389
+    protocol: TCP
+    targetPort: 3389
+  - name: udp
+    port: 3389
+    protocol: UDP
+    targetPort: 3389
+  - name: vnc
+    port: 5900
+    protocol: TCP
+    targetPort: 5900
+  selector:
+    app: windows
+  type: ClusterIP
